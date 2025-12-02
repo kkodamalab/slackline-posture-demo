@@ -22,10 +22,9 @@
   <div id="info">Deviation: 0 px</div>
 </div>
 
-<!-- 必須：Tasks Core（絶対必要） -->
+<!-- MediaPipe Tasks Core -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-core@latest"></script>
-
-<!-- Vision Tasks（PoseLandmarker本体） -->
+<!-- Vision Tasks -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest"></script>
 
 <script>
@@ -36,11 +35,10 @@
   const info = document.getElementById("info");
 
   // カメラ起動
-  navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-    video.srcObject = stream;
-  });
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+    .then(stream => { video.srcObject = stream; });
 
-  // ---------- MediaPipe PoseLandmarker 読み込み ----------
+  // MediaPipe Pose
   const vision = await window.FilesetResolver.forVisionTasks(
     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
   );
@@ -53,7 +51,6 @@
     runningMode: "video",
     numPoses: 1
   });
-  // -------------------------------------------------------
 
   function draw() {
     if (video.readyState < 2) {
@@ -61,11 +58,68 @@
       return;
     }
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Safari 対策：canvas サイズは毎フレーム変更しない
+    if (canvas.width !== video.videoWidth) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
 
     pose.detectForVideo(video, performance.now(), (result) => {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // 正中線（縦）
-      const midX =
+      // 正中線
+      const midX = canvas.width / 2;
+      ctx.strokeStyle = "yellow";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(midX, 0);
+      ctx.lineTo(midX, canvas.height);
+      ctx.stroke();
+
+      if (!result.landmarks || result.landmarks.length === 0) return;
+
+      const lm = result.landmarks[0];
+
+      // 肩と腰の位置
+      function avg(a, b) {
+        return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      }
+
+      const s = avg(lm[11], lm[12]); // shoulders
+      const h = avg(lm[23], lm[24]); // hips
+
+      // canvas座標へ
+      s.x *= canvas.width;
+      s.y *= canvas.height;
+      h.x *= canvas.width;
+      h.y *= canvas.height;
+
+      // 体軸ライン
+      ctx.strokeStyle = "cyan";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(h.x, h.y);
+      ctx.stroke();
+
+      // ズレ量
+      const deviation = Math.abs(s.x - midX);
+      info.textContent = `Deviation: ${deviation.toFixed(1)} px`;
+
+      if (deviation > 60) {
+        info.style.background = "rgba(180,0,0,0.6)";
+        info.textContent += "  ← ALERT";
+      } else {
+        info.style.background = "rgba(0,0,0,0.4)";
+      }
+    });
+
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+})();
+</script>
+
+</body>
+</html>
