@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Posture Demo - MediaPipe</title>
+<title>Posture Demo - iPhone Safari OK</title>
 <style>
   body { margin: 0; background: #111; color: #fff; font-family: sans-serif; }
   #container { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
@@ -17,14 +17,12 @@
 <body>
 
 <div id="container">
-  <video id="video" autoplay playsinline></video>
+  <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas"></canvas>
-  <div id="info">Deviation: 0 px</div>
+  <div id="info">Loading…</div>
 </div>
 
-<!-- MediaPipe Tasks Core -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-core@latest"></script>
-<!-- Vision Tasks -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest"></script>
 
 <script>
@@ -34,16 +32,30 @@
   const ctx = canvas.getContext("2d");
   const info = document.getElementById("info");
 
-  // カメラ起動
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-    .then(stream => { video.srcObject = stream; });
+  // ★ iPhone Safari を確実に動かすカメラ設定
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: "user"   // Safari は無視しても fallback あり
+      },
+      audio: false
+    });
+  } catch (err) {
+    info.textContent = "Camera blocked: " + err;
+    return;
+  }
 
-  // MediaPipe Pose
-  const vision = await window.FilesetResolver.forVisionTasks(
+  video.srcObject = stream;
+
+  // Load MediaPipe
+  const vision = await FilesetResolver.forVisionTasks(
     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
   );
 
-  const pose = await window.PoseLandmarker.createFromOptions(vision, {
+  const pose = await PoseLandmarker.createFromOptions(vision, {
     baseOptions: {
       modelAssetPath:
         "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
@@ -58,7 +70,6 @@
       return;
     }
 
-    // Safari 対策：canvas サイズは毎フレーム変更しない
     if (canvas.width !== video.videoWidth) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -67,7 +78,6 @@
     pose.detectForVideo(video, performance.now(), (result) => {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // 正中線
       const midX = canvas.width / 2;
       ctx.strokeStyle = "yellow";
       ctx.lineWidth = 3;
@@ -76,42 +86,32 @@
       ctx.lineTo(midX, canvas.height);
       ctx.stroke();
 
-      if (!result.landmarks || result.landmarks.length === 0) return;
+      if (!result.landmarks || result.landmarks.length === 0) {
+        info.textContent = "Detecting…";
+        return;
+      }
 
       const lm = result.landmarks[0];
 
-      // 肩と腰の位置
-      function avg(a, b) {
-        return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-      }
+      const sx = ((lm[11].x + lm[12].x) / 2) * canvas.width;
+      const sy = ((lm[11].y + lm[12].y) / 2) * canvas.height;
 
-      const s = avg(lm[11], lm[12]); // shoulders
-      const h = avg(lm[23], lm[24]); // hips
+      const hx = ((lm[23].x + lm[24].x) / 2) * canvas.width;
+      const hy = ((lm[23].y + lm[24].y) / 2) * canvas.height;
 
-      // canvas座標へ
-      s.x *= canvas.width;
-      s.y *= canvas.height;
-      h.x *= canvas.width;
-      h.y *= canvas.height;
-
-      // 体軸ライン
       ctx.strokeStyle = "cyan";
       ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.moveTo(s.x, s.y);
-      ctx.lineTo(h.x, h.y);
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(hx, hy);
       ctx.stroke();
 
-      // ズレ量
-      const deviation = Math.abs(s.x - midX);
-      info.textContent = `Deviation: ${deviation.toFixed(1)} px`;
+      const deviation = Math.abs(sx - midX);
 
-      if (deviation > 60) {
-        info.style.background = "rgba(180,0,0,0.6)";
-        info.textContent += "  ← ALERT";
-      } else {
-        info.style.background = "rgba(0,0,0,0.4)";
-      }
+      info.textContent = `Deviation: ${deviation.toFixed(1)} px`;
+      info.style.background = deviation > 60 ?
+        "rgba(180,0,0,0.6)" :
+        "rgba(0,0,0,0.4)";
     });
 
     requestAnimationFrame(draw);
