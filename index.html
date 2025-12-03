@@ -43,7 +43,7 @@
 
 <div id="videoArea">
   <video id="video" autoplay playsinline muted></video>
-  <canvas id="canvas"></canvas>
+  anvas id="canvas"></canvas>
 </div>
 <div id="info">Loading…</div>
 
@@ -69,18 +69,6 @@
     return new Promise(resolve => {
       video.onloadedmetadata = () => resolve();
     });
-  }
-
-  function computeAxisAndAngle(lm) {
-    const avg = (a, b) => ({
-      x: (a.x + b.x) / 2,
-      y: (a.y + b.y) / 2
-    });
-
-    const s = avg(lm[11], lm[12]); // shoulders
-    const h = avg(lm[23], lm[24]); // hips
-
-    return {s, h};
   }
 
   async function main() {
@@ -148,19 +136,27 @@
         }
 
         const lm = result.landmarks[0];
-        const {s, h} = computeAxisAndAngle(lm);
 
-        // ★ ミラー補正：正規化座標を先にピクセル化してから左右反転
+        // Compute shoulder and hip midpoints
+        const avg = (a, b) => ({
+          x: (a.x + b.x) / 2,
+          y: (a.y + b.y) / 2
+        });
+
+        const s = avg(lm[11], lm[12]);  // shoulders
+        const h = avg(lm[23], lm[24]);  // hips
+
+        // Convert normalized coords to pixels
         let sx = s.x * canvas.width;
         let sy = s.y * canvas.height;
         let hx = h.x * canvas.width;
         let hy = h.y * canvas.height;
 
-        // canvas は scaleX(-1) で左右反転しているので、描画座標も反転
+        // Mirror coords to match the mirrored video display
         sx = canvas.width - sx;
         hx = canvas.width - hx;
 
-        // Body axis line (shoulders → hips)
+        // Draw body axis line (shoulders → hips)
         ctx.strokeStyle = "cyan";
         ctx.lineWidth   = 4;
         ctx.beginPath();
@@ -168,14 +164,17 @@
         ctx.lineTo(hx, hy);
         ctx.stroke();
 
-        // Angle calculation (relative to vertical)
+        // Calculate angle relative to vertical
         const vx = hx - sx;
         const vy = hy - sy;
         const len = Math.hypot(vx, vy) || 1;
         const nx = vx / len;
         const ny = vy / len;
 
+        // Angle from vertical (0, -1)
         let deg = Math.acos(Math.max(-1, Math.min(1, -ny))) * 180 / Math.PI;
+        
+        // Determine left/right tilt
         if (nx > 0) deg = +deg; else deg = -deg;
 
         const direction = (deg > 0) ? "Right" : "Left";
