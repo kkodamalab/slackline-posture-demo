@@ -104,7 +104,7 @@
         minTrackingConfidence: 0.5
       });
 
-      info.textContent = "Pose loaded. 全身が映る位置に下がってください。";
+      info.textContent = "Pose loaded. Step back so your full body is visible.";
 
       let lastVideoTime = -1;
 
@@ -143,16 +143,21 @@
         ctx.stroke();
 
         if (!result || !result.landmarks || result.landmarks.length === 0) {
-          info.textContent = "Detecting…（全身が入るよう後ろに下がってください）";
+          info.textContent = "Detecting…（step back so your full body is visible）";
           requestAnimationFrame(renderLoop);
           return;
         }
 
-        const lm = result.landmarks[0];
-        const {s, h} = computeAxisAndAngle(lm);
+const lm = result.landmarks[0];
+const {s, h} = computeAxisAndAngle(lm);
 
-        s.x *= canvas.width;  s.y *= canvas.height;
-        h.x *= canvas.width;  h.y *= canvas.height;
+// 正規化座標 → ピクセル
+s.x *= canvas.width;  s.y *= canvas.height;
+h.x *= canvas.width;  h.y *= canvas.height;
+
+// ★ ミラー補正：映像が scaleX(-1) なので、座標も左右反転して合わせる
+s.x = canvas.width - s.x;
+h.x = canvas.width - h.x;
 
         // 体軸線（肩→腰）
         ctx.strokeStyle = "cyan";
@@ -172,11 +177,11 @@
         let deg = Math.acos(Math.max(-1, Math.min(1, -ny))) * 180 / Math.PI;
         if (nx > 0) deg = +deg; else deg = -deg;
 
-        const direction = (deg > 0) ? "右" : "左";
+        const direction = (deg > 0) ? "Right" : "Left";
         const deviationDeg = Math.abs(deg).toFixed(1);
 
         info.textContent =
-          `Pose detected.\n体軸傾き: ${direction}に ${deviationDeg}°\n理想姿勢は垂直です。傾きを 0° に近づけてください。`;
+          `Pose detected.\nBody axis tilt: ${direction}に ${deviationDeg}°\nIdeal posture is vertical (0°). Adjust your balance.`;
 
         requestAnimationFrame(renderLoop);
       }
@@ -193,3 +198,4 @@
 
 </body>
 </html>
+
