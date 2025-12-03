@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
 <meta charset="UTF-8" />
 <title>Posture Demo - MediaPipe</title>
@@ -17,99 +17,116 @@
 <body>
 
 <div id="container">
-  <video id="video" autoplay playsinline></video>
+  <video id="video" autoplay playsinline muted></video>
   <canvas id="canvas"></canvas>
   <div id="info">Loading…</div>
 </div>
 
-<!-- 必須：Tasks Core -->
+<!-- MediaPipe Tasks Core / Vision -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-core@0.10.0"></script>
-<!-- Vision Tasks -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0"></script>
 
 <script>
 (async () => {
-  const video = document.getElementById("video");
+  const video  = document.getElementById("video");
   const canvas = document.getElementById("canvas");
-  const ctx = canvas.getContext("2d");
-  const info = document.getElementById("info");
+  const ctx    = canvas.getContext("2d");
+  const info   = document.getElementById("info");
 
-  // ★ iOS Safari 対応：カメラパラメータ明示
-  navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "user", width: 720, height: 1280 }
-  }).then(stream => { video.srcObject = stream; });
+  // カメラ起動
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "user", width: 720, height: 1280 },
+    audio: false
+  });
+  video.srcObject = stream;
 
-  // ★ wasm パスは “末尾 / ” が必須（Safariバグ回避）
-  const vision = await window.FilesetResolver.forVisionTasks(
-    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm/"
+  // MediaPipe 初期化
+  const vision = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
   );
 
-  // ★ モデルは full を使用（lite は iOSで失敗例あり）
-  const pose = await window.PoseLandmarker.createFromOptions(vision, {
+  const poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
     baseOptions: {
       modelAssetPath:
         "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task"
     },
-    runningMode: "video",
+    runningMode: "VIDEO",
     numPoses: 1
   });
 
   info.textContent = "Pose loaded.";
 
-  function draw() {
+  let lastVideoTime = -1;
+
+  function renderLoop() {
     if (video.readyState < 2) {
-      requestAnimationFrame(draw);
+      requestAnimationFrame(renderLoop);
       return;
     }
 
+    // ビデオサイズに合わせてキャンバスを更新
     if (canvas.width !== video.videoWidth) {
-      canvas.width = video.videoWidth;
+      canvas.width  = video.videoWidth;
       canvas.height = video.videoHeight;
     }
 
-    pose.detectForVideo(video, performance.now(), (result) => {
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    // フレーム更新時のみ推定を実行（公式ガイド準拠）
+    // https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker/web_js
+    if (video.currentTime === lastVideoTime) {
+      requestAnimationFrame(renderLoop);
+      return;
+    }
+    lastVideoTime = video.currentTime;
 
-      const midX = canvas.width / 2;
-      ctx.strokeStyle = "yellow";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(midX, 0);
-      ctx.lineTo(midX, canvas.height);
-      ctx.stroke();
+    const now = performance.now();
+    const result = poseLandmarker.detectForVideo(video, now);
 
-      if (!result.landmarks || result.landmarks.length === 0) {
-        info.textContent = "Detecting...";
-        return;
-      }
+    // 背景としてビデオを描画
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      info.textContent = "OK";
+    const midX = canvas.width / 2;
+    ctx.strokeStyle = "yellow";
+    ctx.lineWidth   = 3;
+    ctx.beginPath();
+    ctx.moveTo(midX, 0);
+    ctx.lineTo(midX, canvas.height);
+    ctx.stroke();
 
-      const lm = result.landmarks[0];
+    if (!result.landmarks || result.landmarks.length === 0) {
+      info.textContent = "Detecting...";
+      requestAnimationFrame(renderLoop);
+      return;
+    }
 
-      function avg(a, b) { return { x: (a.x + b.x)/2, y: (a.y + b.y)/2 }; }
+    info.textContent = "OK";
 
-      const s = avg(lm[11], lm[12]);
-      const h = avg(lm[23], lm[24]);
+    const lm = result.landmarks[0];   // 33点の配列
 
-      s.x *= canvas.width; s.y *= canvas.height;
-      h.x *= canvas.width; h.y *= canvas.height;
+    function avg(a, b) {
+      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    }
 
-      ctx.strokeStyle = "cyan";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(s.x, s.y);
-      ctx.lineTo(h.x, h.y);
-      ctx.stroke();
+    // 肩(11,12)と腰(23,24)の中点
+    const s = avg(lm[11], lm[12]);
+    const h = avg(lm[23], lm[24]);
 
-      const deviation = Math.abs(s.x - midX);
-      info.textContent = `Deviation: ${deviation.toFixed(1)} px`;
-    });
+    s.x *= canvas.width;  s.y *= canvas.height;
+    h.x *= canvas.width;  h.y *= canvas.height;
 
-    requestAnimationFrame(draw);
+    ctx.strokeStyle = "cyan";
+    ctx.lineWidth   = 4;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(h.x, h.y);
+    ctx.stroke();
+
+    const deviation = Math.abs(s.x - midX);
+    info.textContent = `Deviation: ${deviation.toFixed(1)} px`;
+
+    requestAnimationFrame(renderLoop);
   }
 
-  draw();
+  renderLoop();
 })();
 </script>
 
