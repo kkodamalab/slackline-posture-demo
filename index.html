@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<title>Slackline Posture Demo (Legacy MP)</title>
+<title>Slackline Posture Demo (MP Pose)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   body {
@@ -27,7 +27,7 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transform: scaleX(-1); /* ミラー表示 */
+    transform: scaleX(-1);
   }
   #info {
     flex: 0 0 auto;
@@ -47,12 +47,14 @@
 </div>
 <div id="info">Loading…</div>
 
-<!-- 旧 MediaPipe Pose 用 CDN（順番重要） -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.4/camera_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.4/drawing_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
+<!-- バージョンを公式サンプルに揃える -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.3/pose.js"></script>
 
 <script>
+console.log("window.Pose =", window.Pose); // デバッグ用
+
 const video  = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx    = canvas.getContext("2d");
@@ -140,9 +142,13 @@ async function main() {
   try {
     await setupCamera();
 
-    // ★ ここを new Pose(...) に修正（グローバル名は Pose）
-    const pose = new Pose({
-      locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`
+    // ★ ここが重要：グローバル名は Pose.Pose（0.3 系の仕様）
+    if (!window.Pose || !window.Pose.Pose) {
+      throw new Error("Pose ライブラリの読み込みに失敗しました。window.Pose.Pose が未定義です。");
+    }
+
+    const pose = new window.Pose.Pose({
+      locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.3/${file}`
     });
 
     pose.setOptions({
@@ -155,7 +161,7 @@ async function main() {
 
     pose.onResults(onResults);
 
-    const camera = new Camera(video, {
+    const camera = new window.Camera(video, {
       onFrame: async () => {
         await pose.send({ image: video });
       },
