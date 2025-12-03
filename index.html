@@ -47,14 +47,12 @@
 </div>
 <div id="info">Loading…</div>
 
-<!-- バージョンを公式サンプルに揃える -->
+<!-- 旧 MediaPipe Pose 用 CDN -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.3/pose.js"></script>
 
 <script>
-console.log("window.Pose =", window.Pose); // デバッグ用
-
 const video  = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx    = canvas.getContext("2d");
@@ -142,12 +140,15 @@ async function main() {
   try {
     await setupCamera();
 
-    // ★ ここが重要：グローバル名は Pose.Pose（0.3 系の仕様）
-    if (!window.Pose || !window.Pose.Pose) {
-      throw new Error("Pose ライブラリの読み込みに失敗しました。window.Pose.Pose が未定義です。");
+    // ここで Pose クラスを確実に取得する
+    const PoseNS = window.Pose || window.POSE || window.pose;
+    if (!PoseNS) {
+      throw new Error("Pose ライブラリの読み込みに失敗しました（Pose / POSE / pose が未定義）。");
     }
 
-    const pose = new window.Pose.Pose({
+    const PoseClass = PoseNS.Pose || PoseNS; // どちらかに入っている想定
+
+    const pose = new PoseClass({
       locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.3/${file}`
     });
 
@@ -161,7 +162,8 @@ async function main() {
 
     pose.onResults(onResults);
 
-    const camera = new window.Camera(video, {
+    const CameraClass = window.Camera || window.cameraUtils?.Camera || Camera;
+    const camera = new CameraClass(video, {
       onFrame: async () => {
         await pose.send({ image: video });
       },
