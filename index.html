@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<title>Slackline Posture Demo</title>
+<title>Slackline Posture Demo (Tasks API)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   body {
@@ -77,8 +77,8 @@
       y: (a.y + b.y) / 2
     });
 
-    const s = avg(lm[11], lm[12]); // shoulders
-    const h = avg(lm[23], lm[24]); // hips
+    const s = avg(lm[11], lm[12]); // 肩
+    const h = avg(lm[23], lm[24]); // 腰
 
     return {s, h};
   }
@@ -103,7 +103,7 @@
         minTrackingConfidence: 0.5
       });
 
-      info.textContent = "Pose loaded. Step back so your full body is visible.";
+      info.textContent = "Pose loaded. 全身が映る位置に下がってください。";
 
       let lastVideoTime = -1;
 
@@ -127,7 +127,7 @@
         const nowMs = performance.now();
         const result = poseLandmarker.detectForVideo(video, nowMs);
 
-        // Background
+        // 背景
         ctx.save();
         ctx.scale(-1, 1);
         ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
@@ -142,7 +142,7 @@
         ctx.stroke();
 
         if (!result || !result.landmarks || result.landmarks.length === 0) {
-          info.textContent = "Detecting… (Step back so your full body is visible)";
+          info.textContent = "Detecting…（全身が入るよう後ろに下がってください）";
           requestAnimationFrame(renderLoop);
           return;
         }
@@ -150,17 +150,13 @@
         const lm = result.landmarks[0];
         const {s, h} = computeAxisAndAngle(lm);
 
-        // Normalized → Pixels + Mirror flip
-        let sx = s.x * canvas.width;
-        let sy = s.y * canvas.height;
-        let hx = h.x * canvas.width;
-        let hy = h.y * canvas.height;
+        // 正規化座標→ピクセル（この時点ではミラー補正なし）
+        const sx = s.x * canvas.width;
+        const sy = s.y * canvas.height;
+        const hx = h.x * canvas.width;
+        const hy = h.y * canvas.height;
 
-        // Mirror correction (match video display)
-        sx = canvas.width - sx;
-        hx = canvas.width - hx;
-
-        // Body axis line (shoulders → hips)
+        // 体軸線（肩→腰）
         ctx.strokeStyle = "cyan";
         ctx.lineWidth   = 4;
         ctx.beginPath();
@@ -177,11 +173,11 @@
         let deg = Math.acos(Math.max(-1, Math.min(1, -ny))) * 180 / Math.PI;
         if (nx > 0) deg = +deg; else deg = -deg;
 
-        const direction = (deg > 0) ? "Right" : "Left";
+        const direction = (deg > 0) ? "右" : "左";
         const deviationDeg = Math.abs(deg).toFixed(1);
 
         info.textContent =
-          `Pose detected.\nBody axis tilt: ${direction} ${deviationDeg}°\nIdeal posture is vertical (0°). Adjust your balance.`;
+          `Pose detected.\n体軸傾き: ${direction}に ${deviationDeg}°\n理想姿勢は垂直です。傾きを 0° に近づけてください。`;
 
         requestAnimationFrame(renderLoop);
       }
