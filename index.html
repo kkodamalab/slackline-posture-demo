@@ -27,7 +27,7 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transform: scaleX(-1); /* ミラー表示（不要なら削除） */
+    transform: scaleX(-1);
   }
   #info {
     flex: 0 0 auto;
@@ -47,8 +47,11 @@
 </div>
 <div id="info">Loading…</div>
 
-<!-- 公式 UMD バンドル。これ 1 本に統一 -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/vision_bundle.js"></script>
+<!-- ★ tasks-core と tasks-vision を個別に読み込み（バージョン指定） -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-core@0.10.16/wasm_internal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.16/wasm_internal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-core@0.10.16"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.16"></script>
 
 <script>
 (async () => {
@@ -58,31 +61,44 @@
   const info   = document.getElementById("info");
 
   try {
-    // ---- 1. tasks-vision 名前空間を必ず取得する ----
-    // vision_bundle.js は window.tasksVision (または window.vision) にエクスポートされる。
-    const tv = window.tasksVision || window.vision || window;
-    const FilesetResolver = tv.FilesetResolver;
-    const PoseLandmarker  = tv.PoseLandmarker;
-
-    if (!FilesetResolver || !PoseLandmarker) {
-      throw new Error("tasks-vision の読み込みに失敗しました（tasksVision.FilesetResolver / PoseLandmarker が未定義）。");
+    // ★ グローバルから取得（どこにぶら下がっているか複数チェック）
+    let FilesetResolver, PoseLandmarker;
+    
+    if (window.FilesetResolver && window.PoseLandmarker) {
+      // 直下
+      FilesetResolver = window.FilesetResolver;
+      PoseLandmarker = window.PoseLandmarker;
+    } else if (window.tasksVision && window.tasksVision.FilesetResolver) {
+      // tasksVision 名前空間
+      FilesetResolver = window.tasksVision.FilesetResolver;
+      PoseLandmarker = window.tasksVision.PoseLandmarker;
+    } else if (window.vision && window.vision.FilesetResolver) {
+      // vision 名前空間
+      FilesetResolver = window.vision.FilesetResolver;
+      PoseLandmarker = window.vision.PoseLandmarker;
+    } else {
+      throw new Error(
+        "tasks-vision の読み込みに失敗しました。\n" +
+        "FilesetResolver / PoseLandmarker がグローバルで見つかりません。\n" +
+        "ブラウザのコンソール(F12)で window.FilesetResolver を確認してください。"
+      );
     }
 
-    // ---- 2. カメラ起動（確実に動く最低限の設定） ----
+    // ★ カメラ起動
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: "user",
         width:  { ideal: 1280 },
-        height: { ideal: 720 },  // 横長だが全身を入れやすいよう後ろに下がる前提
+        height: { ideal: 720 },
         aspectRatio: { ideal: 16/9 }
       },
       audio: false
     });
     video.srcObject = stream;
 
-    // ---- 3. MediaPipe PoseLandmarker 初期化 ----
+    // ★ MediaPipe 初期化
     const vision = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.16/wasm"
     );
 
     const poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
@@ -121,7 +137,7 @@
       const nowMs = performance.now();
       const result = poseLandmarker.detectForVideo(video, nowMs);
 
-      // 背景
+      // 背景映像
       ctx.save();
       ctx.scale(-1, 1);
       ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
@@ -173,7 +189,7 @@
       const deviationDeg = Math.abs(deg).toFixed(1);
 
       info.textContent =
-        `Pose detected.\n体軸傾き: ${direction}に ${deviationDeg}°\n全身が見えるよう、カメラから十分に離れてください。`;
+        `✓ Pose detected\n体軸傾き: ${direction}に ${deviationDeg}°\n理想姿勢は垂直です。バランス調整して傾きを0°に近づけてください。`;
 
       requestAnimationFrame(renderLoop);
     }
