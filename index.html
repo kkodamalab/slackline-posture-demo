@@ -27,6 +27,7 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+    /* 映像・座標ともこれを前提にミラー処理を行う */
     transform: scaleX(-1);
   }
   #info {
@@ -115,13 +116,15 @@
         const nowMs = performance.now();
         const result = poseLandmarker.detectForVideo(video, nowMs);
 
-        // Background
+        // 1) 背景映像（ミラー）
         ctx.save();
         ctx.scale(-1, 1);
         ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
         ctx.restore();
 
         const midX = canvas.width / 2;
+
+        // 2) 理想姿勢（垂直線）
         ctx.strokeStyle = "yellow";
         ctx.lineWidth   = 3;
         ctx.beginPath();
@@ -137,44 +140,55 @@
 
         const lm = result.landmarks[0];
 
-        // Compute shoulder and hip midpoints
+        // 肩と腰の中点
         const avg = (a, b) => ({
           x: (a.x + b.x) / 2,
           y: (a.y + b.y) / 2
         });
 
-        const s = avg(lm[11], lm[12]);  // shoulders
-        const h = avg(lm[23], lm[24]);  // hips
+        const sN = avg(lm[11], lm[12]);  // shoulders (normalized)
+        const hN = avg(lm[23], lm[24]);  // hips (normalized)
 
-        // Convert normalized coords to pixels
-        let sx = s.x * canvas.width;
-        let sy = s.y * canvas.height;
-        let hx = h.x * canvas.width;
-        let hy = h.y * canvas.height;
+        // 正規化座標 → ピクセル
+        let sx = sN.x * canvas.width;
+        let sy = sN.y * canvas.height;
+        let hx = hN.x * canvas.width;
+        let hy = hN.y * canvas.height;
 
-        // Mirror coords to match the mirrored video display
+        // ★ ミラー表示と座標の向きを完全に一致させる
+        // 映像は scaleX(-1) 済みなので、座標も左右反転して合わせる
         sx = canvas.width - sx;
         hx = canvas.width - hx;
 
-        // Draw body axis line (shoulders → hips)
-        ctx.strokeStyle = "cyan";
-        ctx.lineWidth   = 4;
-        ctx.beginPath();
-        ctx.moveTo(sx, sy);
-        ctx.lineTo(hx, hy);
-        ctx.stroke();
-
-        // Calculate angle relative to vertical
+        // 3) 体軸ベクトルを上下方向に延長（画面端から端まで）
         const vx = hx - sx;
         const vy = hy - sy;
         const len = Math.hypot(vx, vy) || 1;
-        const nx = vx / len;
-        const ny = vy / len;
+        const ux = vx / len;
+        const uy = vy / len;
 
-        // Angle from vertical (0, -1)
+        // 肩・腰から計算した中点を基準に、上下に十分延長
+        const centerX = (sx + hx) / 2;
+        const centerY = (sy + hy) / 2;
+        const bigLen  = Math.max(canvas.width, canvas.height) * 1.5;
+
+        const ax1 = centerX - ux * bigLen;
+        const ay1 = centerY - uy * bigLen;
+        const ax2 = centerX + ux * bigLen;
+        const ay2 = centerY + uy * bigLen;
+
+        ctx.strokeStyle = "cyan";
+        ctx.lineWidth   = 4;
+        ctx.beginPath();
+        ctx.moveTo(ax1, ay1);
+        ctx.lineTo(ax2, ay2);
+        ctx.stroke();
+
+        // 4) 垂直に対する左右角度（ミラー後の座標で計算）
+        const nx = ux;
+        const ny = uy;
+
         let deg = Math.acos(Math.max(-1, Math.min(1, -ny))) * 180 / Math.PI;
-        
-        // Determine left/right tilt
         if (nx > 0) deg = +deg; else deg = -deg;
 
         const direction = (deg > 0) ? "Right" : "Left";
