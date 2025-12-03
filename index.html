@@ -47,41 +47,40 @@
 </div>
 <div id="info">Loading…</div>
 
-<!-- 公式の vision_bundle.js（UMD）を読み込む -->
+<!-- 公式 UMD バンドル。これ 1 本に統一 -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/vision_bundle.js"></script>
 
 <script>
 (async () => {
-  // vision_bundle.js は window に "vision" 名前空間をぶら下げる
-  const visionNS = window.vision || window.tasksVision || window;
-  const FilesetResolver  = visionNS.FilesetResolver;
-  const PoseLandmarker   = visionNS.PoseLandmarker;
-
   const video  = document.getElementById("video");
   const canvas = document.getElementById("canvas");
   const ctx    = canvas.getContext("2d");
   const info   = document.getElementById("info");
 
   try {
-    // ここで再チェックして、どこでコケているかはっきりさせる
+    // ---- 1. tasks-vision 名前空間を必ず取得する ----
+    // vision_bundle.js は window.tasksVision (または window.vision) にエクスポートされる。
+    const tv = window.tasksVision || window.vision || window;
+    const FilesetResolver = tv.FilesetResolver;
+    const PoseLandmarker  = tv.PoseLandmarker;
+
     if (!FilesetResolver || !PoseLandmarker) {
-      throw new Error("tasks-vision の読み込みに失敗しました（FilesetResolver / PoseLandmarker が見つかりません）。");
+      throw new Error("tasks-vision の読み込みに失敗しました（tasksVision.FilesetResolver / PoseLandmarker が未定義）。");
     }
 
-    // --- カメラ設定：全身が入りやすいよう広角寄り ---
+    // ---- 2. カメラ起動（確実に動く最低限の設定） ----
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: "user",
-        width:  { min: 640, ideal: 1280 },
-        height: { min: 720, ideal: 1920 },
-        aspectRatio: { ideal: 9/16 },
-        advanced: [{ zoom: 1.0 }]
+        width:  { ideal: 1280 },
+        height: { ideal: 720 },  // 横長だが全身を入れやすいよう後ろに下がる前提
+        aspectRatio: { ideal: 16/9 }
       },
       audio: false
     });
     video.srcObject = stream;
 
-    // --- MediaPipe 初期化 ---
+    // ---- 3. MediaPipe PoseLandmarker 初期化 ----
     const vision = await FilesetResolver.forVisionTasks(
       "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
     );
@@ -122,7 +121,7 @@
       const nowMs = performance.now();
       const result = poseLandmarker.detectForVideo(video, nowMs);
 
-      // 背景映像（左右反転）
+      // 背景
       ctx.save();
       ctx.scale(-1, 1);
       ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
