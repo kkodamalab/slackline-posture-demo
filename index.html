@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<title>Slackline Posture Demo (MP Pose)</title>
+<title>Slackline Posture Demo (Tasks API)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   body {
@@ -47,139 +47,148 @@
 </div>
 <div id="info">Loading…</div>
 
-<!-- 旧 MediaPipe Pose 用 CDN -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.3/pose.js"></script>
+<!-- ES Modules で Tasks API を直接 import -->
+<script type="module">
+  import {FilesetResolver, PoseLandmarker} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0";
 
-<script>
-const video  = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const ctx    = canvas.getContext("2d");
-const info   = document.getElementById("info");
+  const video  = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const ctx    = canvas.getContext("2d");
+  const info   = document.getElementById("info");
 
-function setupCamera() {
-  return navigator.mediaDevices.getUserMedia({
-    video: {
-      facingMode: "user",
-      width:  { ideal: 1280 },
-      height: { ideal: 720 },
-      aspectRatio: { ideal: 16/9 }
-    },
-    audio: false
-  }).then(stream => {
+  async function setupCamera() {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "user",
+        width:  { ideal: 1280 },
+        height: { ideal: 720 },
+        aspectRatio: { ideal: 16/9 }
+      },
+      audio: false
+    });
     video.srcObject = stream;
     return new Promise(resolve => {
       video.onloadedmetadata = () => resolve();
     });
-  });
-}
-
-function onResults(results) {
-  if (!results.image) return;
-
-  if (canvas.width !== results.image.width || canvas.height !== results.image.height) {
-    canvas.width  = results.image.width;
-    canvas.height = results.image.height;
   }
 
-  ctx.save();
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-  ctx.restore();
+  function computeAxisAndAngle(lm) {
+    const avg = (a, b) => ({
+      x: (a.x + b.x) / 2,
+      y: (a.y + b.y) / 2
+    });
 
-  const midX = canvas.width / 2;
-  ctx.strokeStyle = "yellow";
-  ctx.lineWidth   = 3;
-  ctx.beginPath();
-  ctx.moveTo(midX, 0);
-  ctx.lineTo(midX, canvas.height);
-  ctx.stroke();
+    const s = avg(lm[11], lm[12]); // 肩
+    const h = avg(lm[23], lm[24]); // 腰
 
-  if (!results.poseLandmarks || results.poseLandmarks.length === 0) {
-    info.textContent = "Detecting…（全身が入るよう後ろに下がってください）";
-    return;
+    return {s, h};
   }
 
-  const lm = results.poseLandmarks;
-  const avg = (a, b) => ({
-    x: (a.x + b.x) / 2,
-    y: (a.y + b.y) / 2
-  });
+  async function main() {
+    try {
+      await setupCamera();
 
-  const s = avg(lm[11], lm[12]);  // 肩
-  const h = avg(lm[23], lm[24]);  // 腰
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+      );
 
-  s.x *= canvas.width;  s.y *= canvas.height;
-  h.x *= canvas.width;  h.y *= canvas.height;
+      const poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath:
+            "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task"
+        },
+        runningMode: "VIDEO",
+        numPoses: 1,
+        minPoseDetectionConfidence: 0.5,
+        minPosePresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
 
-  ctx.strokeStyle = "cyan";
-  ctx.lineWidth   = 4;
-  ctx.beginPath();
-  ctx.moveTo(s.x, s.y);
-  ctx.lineTo(h.x, h.y);
-  ctx.stroke();
+      info.textContent = "Pose loaded. 全身が映る位置に下がってください。";
 
-  const vx = h.x - s.x;
-  const vy = h.y - s.y;
-  const len = Math.hypot(vx, vy) || 1;
-  const nx = vx / len;
-  const ny = vy / len;
+      let lastVideoTime = -1;
 
-  let deg = Math.acos(Math.max(-1, Math.min(1, -ny))) * 180 / Math.PI;
-  if (nx > 0) deg = +deg; else deg = -deg;
+      function renderLoop() {
+        if (video.readyState < 2) {
+          requestAnimationFrame(renderLoop);
+          return;
+        }
 
-  const direction = (deg > 0) ? "右" : "左";
-  const deviationDeg = Math.abs(deg).toFixed(1);
+        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+          canvas.width  = video.videoWidth;
+          canvas.height = video.videoHeight;
+        }
 
-  info.textContent =
-    `Pose detected.\n体軸傾き: ${direction}に ${deviationDeg}°\n理想姿勢は垂直です。傾きを 0° に近づけてください。`;
-}
+        if (video.currentTime === lastVideoTime) {
+          requestAnimationFrame(renderLoop);
+          return;
+        }
+        lastVideoTime = video.currentTime;
 
-async function main() {
-  try {
-    await setupCamera();
+        const nowMs = performance.now();
+        const result = poseLandmarker.detectForVideo(video, nowMs);
 
-    // ここで Pose クラスを確実に取得する
-    const PoseNS = window.Pose || window.POSE || window.pose;
-    if (!PoseNS) {
-      throw new Error("Pose ライブラリの読み込みに失敗しました（Pose / POSE / pose が未定義）。");
+        // 背景
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+        ctx.restore();
+
+        const midX = canvas.width / 2;
+        ctx.strokeStyle = "yellow";
+        ctx.lineWidth   = 3;
+        ctx.beginPath();
+        ctx.moveTo(midX, 0);
+        ctx.lineTo(midX, canvas.height);
+        ctx.stroke();
+
+        if (!result || !result.landmarks || result.landmarks.length === 0) {
+          info.textContent = "Detecting…（全身が入るよう後ろに下がってください）";
+          requestAnimationFrame(renderLoop);
+          return;
+        }
+
+        const lm = result.landmarks[0];
+        const {s, h} = computeAxisAndAngle(lm);
+
+        s.x *= canvas.width;  s.y *= canvas.height;
+        h.x *= canvas.width;  h.y *= canvas.height;
+
+        // 体軸線（肩→腰）
+        ctx.strokeStyle = "cyan";
+        ctx.lineWidth   = 4;
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y);
+        ctx.lineTo(h.x, h.y);
+        ctx.stroke();
+
+        // 垂直に対する左右角度
+        const vx = h.x - s.x;
+        const vy = h.y - s.y;
+        const len = Math.hypot(vx, vy) || 1;
+        const nx = vx / len;
+        const ny = vy / len;
+
+        let deg = Math.acos(Math.max(-1, Math.min(1, -ny))) * 180 / Math.PI;
+        if (nx > 0) deg = +deg; else deg = -deg;
+
+        const direction = (deg > 0) ? "右" : "左";
+        const deviationDeg = Math.abs(deg).toFixed(1);
+
+        info.textContent =
+          `Pose detected.\n体軸傾き: ${direction}に ${deviationDeg}°\n理想姿勢は垂直です。傾きを 0° に近づけてください。`;
+
+        requestAnimationFrame(renderLoop);
+      }
+
+      renderLoop();
+    } catch (e) {
+      console.error(e);
+      info.textContent = "Error: " + (e && e.message ? e.message : e);
     }
-
-    const PoseClass = PoseNS.Pose || PoseNS; // どちらかに入っている想定
-
-    const pose = new PoseClass({
-      locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.3/${file}`
-    });
-
-    pose.setOptions({
-      modelComplexity: 1,
-      smoothLandmarks: true,
-      enableSegmentation: false,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5
-    });
-
-    pose.onResults(onResults);
-
-    const CameraClass = window.Camera || window.cameraUtils?.Camera || Camera;
-    const camera = new CameraClass(video, {
-      onFrame: async () => {
-        await pose.send({ image: video });
-      },
-      width: 1280,
-      height: 720
-    });
-
-    camera.start();
-    info.textContent = "Camera started. 全身が映る位置に下がってください。";
-  } catch (e) {
-    console.error(e);
-    info.textContent = "Error: " + (e && e.message ? e.message : e);
   }
-}
 
-main();
+  main();
 </script>
 
 </body>
