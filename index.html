@@ -47,10 +47,10 @@
 </div>
 <div id="info">Loading…</div>
 
-<!-- 旧 MediaPipe Pose（Tasks API ではない方） -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+<!-- 旧 MediaPipe Pose 用 CDN（順番重要） -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.4/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.4/drawing_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/pose.js"></script>
 
 <script>
 const video  = document.getElementById("video");
@@ -75,17 +75,14 @@ function setupCamera() {
   });
 }
 
-// MediaPipe Pose の結果コールバック
 function onResults(results) {
   if (!results.image) return;
 
-  // キャンバスサイズ同期
   if (canvas.width !== results.image.width || canvas.height !== results.image.height) {
     canvas.width  = results.image.width;
     canvas.height = results.image.height;
   }
 
-  // 背景（すでに左右反転されている前提）
   ctx.save();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
@@ -99,15 +96,12 @@ function onResults(results) {
   ctx.lineTo(midX, canvas.height);
   ctx.stroke();
 
-  // ランドマークがない場合
   if (!results.poseLandmarks || results.poseLandmarks.length === 0) {
     info.textContent = "Detecting…（全身が入るよう後ろに下がってください）";
     return;
   }
 
   const lm = results.poseLandmarks;
-
-  // 肩(11,12)と腰(23,24)の中点
   const avg = (a, b) => ({
     x: (a.x + b.x) / 2,
     y: (a.y + b.y) / 2
@@ -119,7 +113,6 @@ function onResults(results) {
   s.x *= canvas.width;  s.y *= canvas.height;
   h.x *= canvas.width;  h.y *= canvas.height;
 
-  // 体軸線（肩→腰）
   ctx.strokeStyle = "cyan";
   ctx.lineWidth   = 4;
   ctx.beginPath();
@@ -127,7 +120,6 @@ function onResults(results) {
   ctx.lineTo(h.x, h.y);
   ctx.stroke();
 
-  // 垂直に対する左右角度
   const vx = h.x - s.x;
   const vy = h.y - s.y;
   const len = Math.hypot(vx, vy) || 1;
@@ -148,9 +140,9 @@ async function main() {
   try {
     await setupCamera();
 
-    // MediaPipe Pose インスタンス生成
-    const pose = new Pose.Pose({
-      locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+    // ★ ここを new Pose(...) に修正（グローバル名は Pose）
+    const pose = new Pose({
+      locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5/${file}`
     });
 
     pose.setOptions({
@@ -163,10 +155,8 @@ async function main() {
 
     pose.onResults(onResults);
 
-    // CameraUtils でループ処理
     const camera = new Camera(video, {
       onFrame: async () => {
-        // ミラー表示のため video 自体を反転させているので、そのまま渡す
         await pose.send({ image: video });
       },
       width: 1280,
