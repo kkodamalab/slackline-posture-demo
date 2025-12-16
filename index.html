@@ -107,7 +107,14 @@ async function main() {
 
     const res = pose.detectForVideo(video, performance.now());
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    // canvasクリア
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 画像を左右反転して描画
+    ctx.save();
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+    ctx.restore();
 
     // 理想姿勢（中央垂直線）
     ctx.strokeStyle = "yellow";
@@ -127,6 +134,10 @@ async function main() {
 
     let s = avg(lm[11], lm[12]); // 肩
     let h = avg(lm[23], lm[24]); // 腰
+
+    // ランドマーク座標を左右反転
+    s.x = 1 - s.x;
+    h.x = 1 - h.x;
 
     s.x *= canvas.width;  s.y *= canvas.height;
     h.x *= canvas.width;  h.y *= canvas.height;
@@ -152,12 +163,12 @@ async function main() {
     ctx.lineTo(cx + ux * tBottom, canvas.height);
     ctx.stroke();
 
-    // ★ ここだけ修正：左右判定を非ミラー基準に戻す
+    // 体軸傾きの計算
     let deg = Math.acos(
       Math.max(-1, Math.min(1, -uy))
     ) * 180 / Math.PI;
 
-    if (ux > 0) deg = -deg;   // ← 最小修正
+    if (ux > 0) deg = -deg;   // 反転に合わせて修正
 
     const dir = deg > 0 ? "右" : "左";
 
