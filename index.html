@@ -25,7 +25,6 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    /* ★ ミラーなし（普通の表示） */
   }
   #info {
     position: absolute;
@@ -108,15 +107,14 @@ async function main() {
 
     const res = pose.detectForVideo(video, performance.now());
 
-    // 背景（そのまま）
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // 理想姿勢（中央の垂直線）
+    // 理想姿勢（中央垂直線）
     ctx.strokeStyle = "yellow";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(canvas.width/2, 0);
-    ctx.lineTo(canvas.width/2, canvas.height);
+    ctx.moveTo(canvas.width / 2, 0);
+    ctx.lineTo(canvas.width / 2, canvas.height);
     ctx.stroke();
 
     if (!res.landmarks?.length) {
@@ -150,16 +148,16 @@ async function main() {
     ctx.strokeStyle = "cyan";
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(cx + ux*tTop,    0);
-    ctx.lineTo(cx + ux*tBottom, canvas.height);
+    ctx.moveTo(cx + ux * tTop, 0);
+    ctx.lineTo(cx + ux * tBottom, canvas.height);
     ctx.stroke();
 
-    // 垂直からの傾き（通常座標系）
+    // ★ ここだけ修正：左右判定を非ミラー基準に戻す
     let deg = Math.acos(
       Math.max(-1, Math.min(1, -uy))
     ) * 180 / Math.PI;
 
-    if (ux < 0) deg = -deg;
+    if (ux > 0) deg = -deg;   // ← 最小修正
 
     const dir = deg > 0 ? "右" : "左";
 
