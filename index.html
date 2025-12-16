@@ -25,7 +25,7 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transform: scaleX(1); /* ★ 鏡表示 */
+    /* ★ ミラーなし（普通の表示） */
   }
   #info {
     position: absolute;
@@ -108,13 +108,10 @@ async function main() {
 
     const res = pose.detectForVideo(video, performance.now());
 
-    // 背景（ミラー）
-    ctx.save();
-    ctx.scale(-1,1);
-    ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
-    ctx.restore();
+    // 背景（そのまま）
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // 理想姿勢（中央垂直線）
+    // 理想姿勢（中央の垂直線）
     ctx.strokeStyle = "yellow";
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -129,8 +126,9 @@ async function main() {
     }
 
     const lm = res.landmarks[0];
-    let s = avg(lm[11], lm[12]);
-    let h = avg(lm[23], lm[24]);
+
+    let s = avg(lm[11], lm[12]); // 肩
+    let h = avg(lm[23], lm[24]); // 腰
 
     s.x *= canvas.width;  s.y *= canvas.height;
     h.x *= canvas.width;  h.y *= canvas.height;
@@ -156,11 +154,15 @@ async function main() {
     ctx.lineTo(cx + ux*tBottom, canvas.height);
     ctx.stroke();
 
-    // 鏡基準の角度（右に傾いたら右）
-    let deg = Math.acos(Math.max(-1, Math.min(1, -uy))) * 180 / Math.PI;
-    if (ux > 0) deg = -deg;   // ★ 鏡基準に反転
+    // 垂直からの傾き（通常座標系）
+    let deg = Math.acos(
+      Math.max(-1, Math.min(1, -uy))
+    ) * 180 / Math.PI;
+
+    if (ux < 0) deg = -deg;
 
     const dir = deg > 0 ? "右" : "左";
+
     info.textContent =
       `Pose detected\n体軸傾き：${dir}に ${Math.abs(deg).toFixed(1)}°\n理想姿勢は垂直（0°）`;
 
@@ -174,4 +176,3 @@ main();
 </script>
 </body>
 </html>
-
