@@ -19,7 +19,19 @@
     height: 100%;
     background: #000;
   }
-  video, canvas {
+
+  /* ★ 人物映像だけ鏡にする */
+  video {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+
+  /* ★ canvas はそのまま */
+  canvas {
     position: absolute;
     top: 0; left: 0;
     width: 100%;
@@ -41,7 +53,7 @@
 
     width: max-content;
     max-width: 95vw;
-    white-space: pre; /* 改行は効かせる・自動折返ししない */
+    white-space: pre;
   }
 </style>
 </head>
@@ -111,10 +123,8 @@ async function main() {
 
     const res = pose.detectForVideo(video, performance.now());
 
-    /* 背景描画（非ミラー） */
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    /* Ideal posture */
     ctx.strokeStyle = "yellow";
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -129,10 +139,10 @@ async function main() {
     }
 
     const lm = res.landmarks[0];
-    let s = avg(lm[11], lm[12]); // shoulders
-    let h = avg(lm[23], lm[24]); // hips
+    let s = avg(lm[11], lm[12]);
+    let h = avg(lm[23], lm[24]);
 
-    /* ★ ここは今まで通り（勝手に変えていない） */
+    /* ★ ここはそのまま */
     s.x = 1 - s.x;
     h.x = 1 - h.x;
 
@@ -151,7 +161,6 @@ async function main() {
     const tTop    = -cy / uy;
     const tBottom = (canvas.height - cy) / uy;
 
-    /* Current posture */
     ctx.strokeStyle = "cyan";
     ctx.lineWidth = 4;
     ctx.beginPath();
@@ -181,4 +190,3 @@ main();
 </script>
 </body>
 </html>
-
