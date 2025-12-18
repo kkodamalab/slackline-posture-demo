@@ -19,19 +19,7 @@
     height: 100%;
     background: #000;
   }
-
-  /* ★ 人物だけ鏡にする（最重要） */
-  video {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transform: scaleX(-1);
-  }
-
-  /* ★ canvas は絶対に反転しない */
-  canvas {
+  video, canvas {
     position: absolute;
     top: 0; left: 0;
     width: 100%;
@@ -193,3 +181,4 @@ main();
 </script>
 </body>
 </html>
+
