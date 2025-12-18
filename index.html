@@ -19,26 +19,13 @@
     height: 100%;
     background: #000;
   }
-
-  /* ★ 人物映像だけ鏡にする */
-  video {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transform: scaleX(-1);
-  }
-
-  /* ★ canvas はそのまま */
-  canvas {
+  video, canvas {
     position: absolute;
     top: 0; left: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
-
   #info {
     position: absolute;
     top: 8px;
@@ -50,7 +37,6 @@
     border-radius: 8px;
     text-align: center;
     pointer-events: none;
-
     width: max-content;
     max-width: 95vw;
     white-space: pre;
@@ -123,8 +109,13 @@ async function main() {
 
     const res = pose.detectForVideo(video, performance.now());
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    /* ★ 鏡像描画（ここが最重要・元に戻した） */
+    ctx.save();
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+    ctx.restore();
 
+    // 理想姿勢（中央垂直線）
     ctx.strokeStyle = "yellow";
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -133,16 +124,16 @@ async function main() {
     ctx.stroke();
 
     if (!res.landmarks?.length) {
-      info.textContent = "Detecting posture…";
+      info.textContent = "Detecting…";
       requestAnimationFrame(loop);
       return;
     }
 
     const lm = res.landmarks[0];
-    let s = avg(lm[11], lm[12]);
-    let h = avg(lm[23], lm[24]);
+    let s = avg(lm[11], lm[12]); // 肩
+    let h = avg(lm[23], lm[24]); // 腰
 
-    /* ★ ここはそのまま */
+    // ★ 鏡前提の補正（そのまま）
     s.x = 1 - s.x;
     h.x = 1 - h.x;
 
