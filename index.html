@@ -27,18 +27,21 @@
     object-fit: cover;
   }
   #info {
-    position: absolute;
-    top: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 6px 10px;
-    font-size: 14px;
-    background: rgba(0,0,0,0.6);
-    border-radius: 6px;
-    text-align: center;
-    white-space: pre-line;
-    pointer-events: none;
-  }
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  font-size: 14px;
+  background: rgba(0,0,0,0.6);
+  border-radius: 8px;
+  text-align: center;
+  pointer-events: none;
+
+  width: max-content;     /* ★ 中身に合わせて横に広がる */
+  max-width: 95vw;        /* ★ 画面からはみ出さない保険 */
+  white-space: nowrap;   /* ★ 自動改行しない */
+}
 </style>
 </head>
 <body>
@@ -176,3 +179,4 @@ main();
 </script>
 </body>
 </html>
+
