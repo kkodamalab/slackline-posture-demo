@@ -25,17 +25,16 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transform: scaleX(-1); /* 強制的に鏡映し */
   }
   #info {
     position: absolute;
+    top: 8px;
     left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    padding: 12px 16px;
-    font-size: 16px;
+    transform: translateX(-50%);
+    padding: 6px 10px;
+    font-size: 14px;
     background: rgba(0,0,0,0.6);
-    border-radius: 8px;
+    border-radius: 6px;
     text-align: center;
     white-space: pre-line;
     pointer-events: none;
@@ -110,7 +109,7 @@ async function main() {
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // 理想姿勢（中央垂直線）
+    // Ideal posture (yellow)
     ctx.strokeStyle = "yellow";
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -119,21 +118,22 @@ async function main() {
     ctx.stroke();
 
     if (!res.landmarks?.length) {
-      info.textContent = "Detecting…";
+      info.textContent = "Detecting posture…";
       requestAnimationFrame(loop);
       return;
     }
 
     const lm = res.landmarks[0];
+    let s = avg(lm[11], lm[12]); // shoulders
+    let h = avg(lm[23], lm[24]); // hips
 
-    let s = avg(lm[11], lm[12]); // 肩
-    let h = avg(lm[23], lm[24]); // 腰
+    // mirror correction
+    s.x = 1 - s.x;
+    h.x = 1 - h.x;
 
-    // 座標反転はしない
     s.x *= canvas.width;  s.y *= canvas.height;
     h.x *= canvas.width;  h.y *= canvas.height;
 
-    // 体幹ベクトル
     const vx = h.x - s.x;
     const vy = h.y - s.y;
     const len = Math.hypot(vx, vy) || 1;
@@ -143,10 +143,10 @@ async function main() {
     const cx = (s.x + h.x) / 2;
     const cy = (s.y + h.y) / 2;
 
-    // 上下端まで延長
     const tTop    = -cy / uy;
     const tBottom = (canvas.height - cy) / uy;
 
+    // Current posture (blue)
     ctx.strokeStyle = "cyan";
     ctx.lineWidth = 4;
     ctx.beginPath();
@@ -154,17 +154,17 @@ async function main() {
     ctx.lineTo(cx + ux * tBottom, canvas.height);
     ctx.stroke();
 
-    // 体軸傾きの計算
+    // Angle
     let deg = Math.acos(
       Math.max(-1, Math.min(1, -uy))
     ) * 180 / Math.PI;
-
     if (ux > 0) deg = -deg;
 
-    const dir = deg > 0 ? "右" : "左";
+    const absDeg = Math.abs(deg).toFixed(1);
+    const side = deg > 0 ? "Right" : "Left";
 
     info.textContent =
-      `Pose detected\n体軸傾き：${dir}に ${Math.abs(deg).toFixed(1)}°\n理想姿勢は垂直（0°）`;
+      `Yellow line: Ideal posture\nBlue line: Current posture ${absDeg}° ${side}`;
 
     requestAnimationFrame(loop);
   }
