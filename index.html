@@ -19,29 +19,42 @@
     height: 100%;
     background: #000;
   }
-  video, canvas {
+
+  /* ★ 人物だけ鏡にする（最重要） */
+  video {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+
+  /* ★ canvas は絶対に反転しない */
+  canvas {
     position: absolute;
     top: 0; left: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
-  #info {
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 8px 16px;
-  font-size: 14px;
-  background: rgba(0,0,0,0.6);
-  border-radius: 8px;
-  text-align: center;
-  pointer-events: none;
 
-  width: max-content;   /* 横は中身に合わせる */
-  max-width: 95vw;      /* 画面はみ出し防止 */
-  white-space: pre;    /* ★ 改行は効かせる／自動折返ししない */
-}
+  #info {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 16px;
+    font-size: 14px;
+    background: rgba(0,0,0,0.6);
+    border-radius: 8px;
+    text-align: center;
+    pointer-events: none;
+
+    width: max-content;
+    max-width: 95vw;
+    white-space: pre; /* 改行は効かせる・自動折返ししない */
+  }
 </style>
 </head>
 <body>
@@ -110,9 +123,10 @@ async function main() {
 
     const res = pose.detectForVideo(video, performance.now());
 
+    /* 背景描画（非ミラー） */
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Ideal posture (yellow)
+    /* Ideal posture */
     ctx.strokeStyle = "yellow";
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -130,7 +144,7 @@ async function main() {
     let s = avg(lm[11], lm[12]); // shoulders
     let h = avg(lm[23], lm[24]); // hips
 
-    // mirror correction
+    /* ★ ここは今まで通り（勝手に変えていない） */
     s.x = 1 - s.x;
     h.x = 1 - h.x;
 
@@ -149,7 +163,7 @@ async function main() {
     const tTop    = -cy / uy;
     const tBottom = (canvas.height - cy) / uy;
 
-    // Current posture (blue)
+    /* Current posture */
     ctx.strokeStyle = "cyan";
     ctx.lineWidth = 4;
     ctx.beginPath();
@@ -157,7 +171,6 @@ async function main() {
     ctx.lineTo(cx + ux * tBottom, canvas.height);
     ctx.stroke();
 
-    // Angle
     let deg = Math.acos(
       Math.max(-1, Math.min(1, -uy))
     ) * 180 / Math.PI;
@@ -167,7 +180,8 @@ async function main() {
     const side = deg > 0 ? "Right" : "Left";
 
     info.textContent =
-      `Yellow line: Ideal posture\nBlue line: Current posture ${absDeg}° ${side}`;
+      `Yellow line: Ideal posture
+Blue line: Current posture ${absDeg}° ${side}`;
 
     requestAnimationFrame(loop);
   }
@@ -179,5 +193,3 @@ main();
 </script>
 </body>
 </html>
-
-
