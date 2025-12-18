@@ -38,9 +38,9 @@
   text-align: center;
   pointer-events: none;
 
-  width: max-content;     /* ★ 中身に合わせて横に広がる */
-  max-width: 95vw;        /* ★ 画面からはみ出さない保険 */
-  white-space: nowrap;   /* ★ 自動改行しない */
+  width: max-content;   /* 横は中身に合わせる */
+  max-width: 95vw;      /* 画面はみ出し防止 */
+  white-space: pre;    /* ★ 改行は効かせる／自動折返ししない */
 }
 </style>
 </head>
@@ -179,4 +179,5 @@ main();
 </script>
 </body>
 </html>
+
 
